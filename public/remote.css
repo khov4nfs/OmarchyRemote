@@ -1018,3 +1018,17 @@
   outline: 3px solid var(--theme-foreground);
   outline-offset: 3px;
 }
+.terminal-shared-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--theme-border, #504c60);
+}
+.terminal-shared-select {
+  max-width: 190px;
+  min-width: 94px;
+  background: var(--theme-surface-raised, #292837);
+  color: var(--theme-foreground, #e0def4);
+}

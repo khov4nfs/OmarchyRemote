@@ -8,8 +8,10 @@ mod dictation;
 mod files;
 mod files_ops;
 mod herdr;
+mod host_control;
 mod muster;
 mod preferences;
+mod shared_terminal;
 mod terminal;
 mod uploads;
 mod voice;
@@ -225,6 +227,11 @@ struct SessionRequest {
     cwd: Option<String>,
     app: Option<String>,
     id: Option<String>,
+    #[serde(default)]
+    shared: bool,
+    shared_name: Option<String>,
+    #[serde(default)]
+    desktop: bool,
 }
 async fn session(
     State(app): State<App>,
@@ -243,7 +250,7 @@ async fn session(
         if let Some(id) = req.id
             && let Some(terminal) = sessions.get(&id)
         {
-            if terminal.program != program {
+            if terminal.program != program || (program == "terminal" && terminal.shared_name.lock().unwrap().is_some() != req.shared) {
                 return Err((
                     StatusCode::BAD_REQUEST,
                     Json(json!({"error":"Session belongs to another app"})),
@@ -269,13 +276,55 @@ async fn session(
         } else {
             None
         };
-        let terminal = Terminal::spawn(program, cwd).map_err(error)?;
+        if req.desktop && apps::resolve_program("ptyxis").is_err() {
+            return Err(error("Ptyxis is not installed on this host"));
+        }
+        let created_shared = req.shared && req.shared_name.is_none() && program == "terminal";
+        let shared = if req.shared && program == "terminal" {
+            Some(if let Some(name) = req.shared_name {
+                if !shared_terminal::exists(&name) {
+                    return Err(error("Shared tmux session not found"));
+                }
+                name
+            } else {
+                shared_terminal::create(cwd.as_deref()).map_err(error)?
+            })
+        } else if req.desktop || req.shared || req.shared_name.is_some() {
+            return Err(error("Desktop sharing requires a terminal shell"));
+        } else {
+            None
+        };
+        let terminal = match &shared {
+            Some(name) => Terminal::spawn_shared(name),
+            None => Terminal::spawn(program, cwd),
+        }.map_err(|e| {
+            if created_shared && let Some(name) = &shared {
+                shared_terminal::remove(name);
+            }
+            error(e)
+        })?;
+        if req.desktop && let Some(name) = &shared
+            && let Err(e) = shared_terminal::open_ptyxis(name)
+        {
+            terminal.terminate().ok();
+            if created_shared {
+                shared_terminal::remove(name);
+            }
+            return Err(error(e));
+        }
         let id = uuid::Uuid::new_v4().to_string();
         sessions.insert(id.clone(), terminal);
-        Ok(Json(json!({"id":id,"exited":false,"resumed":false})))
+        Ok(Json(json!({"id":id,"exited":false,"resumed":false,"shared_name":shared,"desktop_requested":req.desktop})))
     })
     .await
     .map_err(error)?
+}
+async fn terminal_shared() -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(shared_terminal::list)
+        .await
+        .map_err(error)?
+        .map(Json)
+        .map_err(error)
 }
 async fn terminal_close(
     State(app): State<App>,
@@ -639,6 +688,17 @@ async fn main() -> anyhow::Result<()> {
     };
     let router = Router::new()
         .route("/api/capabilities", get(capabilities))
+        .route("/api/host/desktop", get(host_control::desktop_status))
+        .route("/api/host/apps", get(host_control::app_list))
+        .route("/api/host/apps/launch", post(host_control::app_launch))
+        .route(
+            "/api/host/connect/status",
+            get(host_control::connect_status),
+        )
+        .route("/api/host/connect/pair", post(host_control::connect_pair))
+        .route("/api/host/connect/send", post(host_control::connect_send))
+        .route("/api/host/input/event", post(host_control::touchpad_event))
+        .route("/api/terminal/shared", get(terminal_shared))
         .route(
             "/api/dictation",
             get(dictation::status)
