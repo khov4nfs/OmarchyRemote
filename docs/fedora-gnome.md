@@ -88,8 +88,7 @@ Ptyxis instead.
 
 ## Testing requirements
 
-The Rust backend still depends on the sibling Corral server crate at
-../Corral/server. The full Cargo build/test/clippy checks require it.
+The Rust backend builds directly from this repository; no sibling project is required.
 The web tests require npm dependencies and, for UI tests, Playwright.
 These integration instructions do not install packages or change GNOME
 settings automatically.

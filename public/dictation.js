@@ -629,7 +629,7 @@
       this.changed = options.changed;
       // Called with what Voice reads aloud and its progress, or null when it stops.
       this.speaking = options.speaking;
-      // Rewrites a transcript before it reaches the draft, as Corral turns spoken names into
+      // Rewrites a transcript before it reaches the draft, as app adapters can turn spoken names into
       // mentions.
       this.revise = options.revise || (text => text);
       this.state = 'idle';
@@ -998,7 +998,7 @@
       node(
         'p',
         'theme-note',
-        'Herdr, Chat and Corral: microphone or ⌘⌃X to start/stop. Hold the microphone to toggle Voice mode (or Shift+Enter with the microphone focused). The host administrator can override Voxtype with OMARCHY_DICTATION_COMMAND.'
+        'Herdr, Chat and Canvas: microphone or ⌘⌃X to start/stop. Hold the microphone to toggle Voice mode (or Shift+Enter with the microphone focused). The host administrator can override Voxtype with OMARCHY_DICTATION_COMMAND.'
       )
     );
     host.append(section);

@@ -172,3 +172,27 @@ test('touchpad is disabled when host does not advertise safe Wayland input', asy
   assert.equal(calls.filter(call => call.url === '/api/host/input/event').length, 0);
   app.dispose();
 });
+test('app catalog no longer exposes Corral but retains Fedora controls and assistant apps', () => {
+  const window = {};
+  runInNewContext(readFileSync('public/apps.js', 'utf8'), {
+    window,
+    localStorage: { getItem: () => null },
+    document: { dispatchEvent() {} },
+  });
+  const apps = window.HyprlandApps;
+  assert.equal(apps.get('corral'), null);
+  assert.ok(!apps.DEFAULT_PINS.includes('corral'));
+  for (const key of [
+    'host-apps',
+    'kde-connect',
+    'terminal',
+    'files',
+    'herdr',
+    'muster',
+    'chat',
+    'canvas',
+  ]) {
+    assert.ok(apps.get(key), `Missing app: ${key}`);
+  }
+  assert.ok(!readFileSync('public/index.html', 'utf8').includes('/corral.js'));
+});

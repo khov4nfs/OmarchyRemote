@@ -12,21 +12,21 @@ test('standalone configuration validates the app identity and remote host', () =
     assert.equal(standaloneConfiguration(file), null);
     fs.writeFileSync(
       file,
-      JSON.stringify({ key: 'corral', name: 'Corral', host: 'https://example.test:12443' })
+      JSON.stringify({ key: 'canvas', name: 'Canvas', host: 'https://example.test:12443' })
     );
     assert.deepEqual(standaloneConfiguration(file), {
-      key: 'corral',
-      name: 'Corral',
+      key: 'canvas',
+      name: 'Canvas',
       host: 'https://example.test:12443/native/',
     });
     fs.writeFileSync(
       file,
-      JSON.stringify({ key: '../corral', name: 'Corral', host: 'https://example.test' })
+      JSON.stringify({ key: '../canvas', name: 'Canvas', host: 'https://example.test' })
     );
     assert.throws(() => standaloneConfiguration(file), /Invalid/);
     fs.writeFileSync(
       file,
-      JSON.stringify({ key: 'corral', name: 'Corral', host: 'http://example.test' })
+      JSON.stringify({ key: 'canvas', name: 'Canvas', host: 'http://example.test' })
     );
     assert.throws(() => standaloneConfiguration(file), /HTTPS/);
   } finally {
