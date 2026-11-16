@@ -4,7 +4,7 @@ What each app in Omarchy Remote does and the limits it enforces. "The host" is t
 
 ## Fedora GNOME host apps and shared terminals
 
-The **Applications** card searches installed Linux desktop entries and requests a host launch through gio. The **KDE Connect** card reports GSConnect/CLI status and supports CLI pairing and sending files where kdeconnect-cli is available; GNOME remote input remains in the paired KDE Connect iPhone app. On Fedora, new Terminal shells create a tmux session visible in Ptyxis where available, while older remote-only shells keep their original behavior. The Terminal toolbar can list and attach existing tmux sessions. Closing a shared terminal in the phone UI detaches that client without killing the tmux server, unlike remote-only PTYs. These features are detailed in [Fedora GNOME host support](fedora-gnome.md).
+The **Applications** card searches installed Linux desktop entries and requests a host launch through gio. The **KDE Connect** card reports GSConnect/CLI status, supports CLI pairing and sending files where kdeconnect-cli is available, and embeds a touchpad for pointer movement, clicks and scrolling through an explicitly consented libei RemoteDesktop portal when `wdotool` is installed. KDE Connect's separate Remote Input app remains available for remote keyboard input. On Fedora, new Terminal shells create a tmux session visible in Ptyxis where available, while older remote-only shells keep their original behavior. The Terminal toolbar can list and attach existing tmux sessions. Closing a shared terminal in the phone UI detaches that client without killing the tmux server, unlike remote-only PTYs. These features are detailed in [Fedora GNOME host support](fedora-gnome.md).
 
 ## Terminal
 

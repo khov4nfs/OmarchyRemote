@@ -11,9 +11,35 @@ Run on Fedora GNOME as the logged-in desktop user. Install via Fedora packages:
 
 Enable GSConnect in GNOME Extensions and pair the KDE Connect iPhone app on
 the same network. GSConnect is the GNOME KDE Connect-compatible backend; do
-not run KDE Connect's independent desktop backend beside it. The iPhone app's
-**Remote Input** feature supplies mouse and keyboard control on GNOME Wayland.
-OmarchyRemote does not synthesize GNOME-wide pointer or keyboard events.
+not run KDE Connect's independent desktop backend beside it. KDE Connect's
+**Remote Input** feature remains available separately for mouse and keyboard
+control, while OmarchyRemote now offers an embedded touchpad on the KDE Connect
+card for hosts with the optional `wdotool` executable.
+
+### Embedded touchpad on Fedora GNOME
+
+Install [wdotool](https://github.com/cushycush/wdotool/releases/latest) as the
+logged-in Fedora user, using the release RPM downloaded for your architecture
+(for example, `sudo dnf install ./wdotool-*.x86_64.rpm`) or `cargo install
+wdotool`. GNOME 46+ with `xdg-desktop-portal-gnome` supports a RemoteDesktop
+portal; run `wdotool --backend libei info` in the **desktop user session**
+to inspect availability before opening the phone app.
+
+The embedded touchpad uses **only** `wdotool --backend libei`, so it never
+falls back to unprivileged/compositor-specific inputs or `/dev/uinput`.
+The first touchpad event may cause a desktop RemoteDesktop permission prompt:
+approve it on the Fedora host. The service needs the logged-in user's
+`WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`, session D-Bus and other display
+environment variables. If the host cannot get permission or lacks libei,
+the app shows an error rather than bypassing GNOME input restrictions.
+The `wdotool` GNOME path is not yet verified on this user's real Fedora session.
+
+One-finger drag moves the pointer; one-finger tap left-clicks; two-finger tap
+right-clicks and two-finger drag scrolls. Separate Left/Right click and scroll
+buttons are available for accessibility. Events are bounded on the server.
+Touchpad input follows the currently focused GNOME window; it is not bound
+to a particular app. No Fedora screen capture, remote keyboard, or video
+streaming is provided by this embedded component.
 
 The OmarchyRemote KDE Connect card shows whether GSConnect and kdeconnect-cli
 are present. CLI pairing and sending files from the Fedora home directory

@@ -697,6 +697,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/host/connect/pair", post(host_control::connect_pair))
         .route("/api/host/connect/send", post(host_control::connect_send))
+        .route("/api/host/input/event", post(host_control::touchpad_event))
         .route("/api/terminal/shared", get(terminal_shared))
         .route(
             "/api/dictation",

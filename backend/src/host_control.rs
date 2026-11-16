@@ -7,7 +7,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
+use std::{collections::BTreeMap, fs, path::PathBuf, process::Command, time::Duration};
 
 fn run(program: &str, args: &[&str]) -> Result<String> {
     let output = Command::new(crate::apps::resolve_program(program)?)
@@ -157,6 +157,7 @@ pub async fn connect_status() -> Response {
     let v = tokio::task::spawn_blocking(|| {
         let cli = crate::apps::resolve_program("kdeconnect-cli").is_ok();
         json!({"gsconnect":gsconnect(),"kdeconnect_cli":cli,
+            "wdotool":crate::apps::resolve_program("wdotool").is_ok(),
             "devices":if cli { run("kdeconnect-cli", &["--list-devices"]).unwrap_or_default() } else { String::new() }})
     }).await.unwrap_or_else(|_| json!({"error":"Status unavailable"}));
     Json(v).into_response()
@@ -220,11 +221,115 @@ pub async fn connect_send(Json(q): Json<SendRequest>) -> Response {
         Err(e) => crate::files::err(e),
     }
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum TouchpadEvent {
+    Move { dx: i32, dy: i32 },
+    Scroll { dx: i32, dy: i32 },
+    Click { button: String },
+}
+
+/// Construct only supported wdotool commands with bounded numerical arguments.
+fn touchpad_args(event: &TouchpadEvent) -> Result<Vec<String>> {
+    match event {
+        TouchpadEvent::Move { dx, dy } if dx.unsigned_abs() <= 150 && dy.unsigned_abs() <= 150 => {
+            Ok(vec![
+                "mousemove".into(),
+                "--relative".into(),
+                dx.to_string(),
+                dy.to_string(),
+            ])
+        }
+        TouchpadEvent::Scroll { dx, dy } if dx.unsigned_abs() <= 8 && dy.unsigned_abs() <= 8 => {
+            Ok(vec!["scroll".into(), dx.to_string(), dy.to_string()])
+        }
+        TouchpadEvent::Click { button } => {
+            let number = match button.as_str() {
+                "left" => "1",
+                "middle" => "2",
+                "right" => "3",
+                _ => bail!("Unsupported touchpad button"),
+            };
+            Ok(vec!["click".into(), number.into()])
+        }
+        _ => bail!("Touchpad motion outside allowed range"),
+    }
+}
+
+/// The GNOME RemoteDesktop portal mediates wdotool's pointer access.
+pub async fn touchpad_event(Json(q): Json<TouchpadEvent>) -> Response {
+    let result: Result<Value> = async {
+        let args = touchpad_args(&q)?;
+        let program = crate::apps::resolve_program("wdotool")?;
+        let output = tokio::time::timeout(
+            Duration::from_secs(20),
+            tokio::process::Command::new(program)
+                .args(["--backend", "libei"])
+                .args(args)
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await??;
+        if !output.status.success() {
+            bail!(
+                "wdotool: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
+        Ok(json!({"requested":true}))
+    }
+    .await;
+    match result {
+        Ok(value) => Json(value).into_response(),
+        Err(error) => crate::files::err(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn safe_device_ids() {
         assert!(super::valid_device("aa-bb:01").is_ok());
         assert!(super::valid_device("--execute=/bin/sh").is_err());
+    }
+
+    #[test]
+    fn input_commands_are_bounded_and_whitelisted() {
+        use super::{TouchpadEvent, touchpad_args};
+        assert_eq!(
+            touchpad_args(&TouchpadEvent::Move { dx: -10, dy: 4 }).unwrap(),
+            vec!["mousemove", "--relative", "-10", "4"]
+        );
+        assert_eq!(
+            touchpad_args(&TouchpadEvent::Click {
+                button: "right".into()
+            })
+            .unwrap(),
+            vec!["click", "3"]
+        );
+        assert_eq!(
+            touchpad_args(&TouchpadEvent::Scroll { dx: 0, dy: -3 }).unwrap(),
+            vec!["scroll", "0", "-3"]
+        );
+        assert!(touchpad_args(&TouchpadEvent::Move { dx: 151, dy: 0 }).is_err());
+        assert!(
+            touchpad_args(&TouchpadEvent::Move {
+                dx: i32::MIN,
+                dy: 0
+            })
+            .is_err()
+        );
+        assert!(touchpad_args(&TouchpadEvent::Scroll { dx: 0, dy: 9 }).is_err());
+        assert!(
+            touchpad_args(&TouchpadEvent::Click {
+                button: "--execute".into()
+            })
+            .is_err()
+        );
+        assert!(
+            serde_json::from_str::<TouchpadEvent>(r#"{"action":"execute","command":"sh"}"#)
+                .is_err()
+        );
     }
 }

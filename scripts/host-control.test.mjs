@@ -88,6 +88,7 @@ test('KDE Connect card reads status and sends a selected home file through the g
       gsconnect: false,
       kdeconnect_cli: true,
       devices: 'Phone: abcdef',
+      wdotool: true,
     },
     '/api/host/connect/send': { requested: true },
   });
@@ -104,5 +105,70 @@ test('KDE Connect card reads status and sends a selected home file through the g
     device: 'abcdef',
     path: '/home/user/report.txt',
   });
+  app.dispose();
+});
+
+const pointer = (pointerId, clientX, clientY) => ({
+  pointerId,
+  clientX,
+  clientY,
+  pointerType: 'touch',
+  button: 0,
+  preventDefault() {},
+});
+
+test('embedded touchpad moves, clicks and scrolls using bounded host events', async () => {
+  const { providers, calls } = mountHost({
+    '/api/host/connect/status': {
+      gsconnect: true,
+      kdeconnect_cli: true,
+      wdotool: true,
+      devices: 'iPhone: paired',
+    },
+    '/api/host/input/event': { requested: true },
+  });
+  const app = providers['kde-connect'].create(new Element('div'));
+  await app.refresh();
+  assert.equal(app.touchpad.ready, true);
+  const pad = app.touchpad.pad;
+  pad.onpointerdown(pointer(1, 10, 15));
+  pad.onpointermove(pointer(1, 30, 40));
+  pad.onpointerup(pointer(1, 30, 40));
+  await settle();
+  pad.onpointerdown(pointer(2, 10, 10));
+  pad.onpointerup(pointer(2, 10, 10));
+  await settle();
+  pad.onpointerdown(pointer(3, 10, 10));
+  pad.onpointerdown(pointer(4, 20, 20));
+  pad.onpointermove(pointer(3, 10, 70));
+  pad.onpointerup(pointer(3, 10, 70));
+  pad.onpointerup(pointer(4, 20, 20));
+  await settle();
+  pad.onpointerdown(pointer(5, 10, 10));
+  pad.onpointerdown(pointer(6, 20, 20));
+  pad.onpointerup(pointer(5, 10, 10));
+  pad.onpointerup(pointer(6, 20, 20));
+  await settle();
+  const events = calls
+    .filter(call => call.url === '/api/host/input/event')
+    .map(call => JSON.parse(call.options.body));
+  assert.deepEqual(events[0], { action: 'move', dx: 30, dy: 38 });
+  assert.ok(events.some(event => event.action === 'click' && event.button === 'left'));
+  assert.ok(events.some(event => event.action === 'scroll' && event.dy > 0));
+  assert.ok(events.some(event => event.action === 'click' && event.button === 'right'));
+  app.dispose();
+});
+
+test('touchpad is disabled when host does not advertise safe Wayland input', async () => {
+  const { providers, calls } = mountHost({
+    '/api/host/connect/status': { wdotool: false, gsconnect: true },
+  });
+  const app = providers['kde-connect'].create(new Element('div'));
+  await app.refresh();
+  app.touchpad.pad.onpointerdown(pointer(1, 10, 20));
+  app.touchpad.pad.onpointerup(pointer(1, 10, 20));
+  await settle();
+  assert.equal(app.touchpad.ready, false);
+  assert.equal(calls.filter(call => call.url === '/api/host/input/event').length, 0);
   app.dispose();
 });
