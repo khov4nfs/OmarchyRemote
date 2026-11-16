@@ -77,6 +77,8 @@ pub const TUIS: &[HostApp] = &[
 
 /// Apps served by dedicated routes rather than a PTY, listed for the capabilities endpoint.
 const SERVICES: &[(&str, &str, &[&str])] = &[
+    ("host-apps", "Applications", &["search", "launch"]),
+    ("kde-connect", "KDE Connect", &["devices", "pair", "send"]),
     (
         "codexbar",
         "CodexBar",

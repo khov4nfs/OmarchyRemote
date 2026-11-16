@@ -53,6 +53,7 @@ pub struct Output {
 }
 pub struct Terminal {
     pub program: String,
+    pub shared_name: Mutex<Option<String>>,
     started: Mutex<bool>,
     pub output: Mutex<Output>,
     pub events: broadcast::Sender<(u64, Vec<u8>)>,
@@ -84,6 +85,17 @@ impl Terminal {
             None,
             !app.wait_for_client,
         )
+    }
+    /// Attach a phone-owned PTY to a shared tmux session also visible in Ptyxis.
+    pub fn spawn_shared(name: &str) -> Result<Arc<Self>> {
+        if !crate::shared_terminal::exists(name) {
+            bail!("Shared terminal not found");
+        }
+        let mut cmd = CommandBuilder::new(crate::apps::resolve_program("tmux")?);
+        cmd.args(["attach-session", "-t", &format!("={name}")]);
+        let term = Self::spawn_command_at(cmd, "terminal", None, true)?;
+        *term.shared_name.lock().unwrap() = Some(name.to_owned());
+        Ok(term)
     }
     #[cfg(test)]
     fn spawn_shell(shell: &str) -> Result<Arc<Self>> {
@@ -125,6 +137,7 @@ impl Terminal {
         let (events, _) = broadcast::channel(512);
         let terminal = Arc::new(Self {
             program: program.to_owned(),
+            shared_name: Mutex::new(None),
             started: Mutex::new(started),
             output: Mutex::new(Output {
                 sequence: 0,

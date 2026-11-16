@@ -2,6 +2,10 @@
 
 What each app in Omarchy Remote does and the limits it enforces. "The host" is the machine running the backend; its name appears in every status line from `OMARCHY_HOST_NAME`.
 
+## Fedora GNOME host apps and shared terminals
+
+The **Applications** card searches installed Linux desktop entries and requests a host launch through gio. The **KDE Connect** card reports GSConnect/CLI status and supports CLI pairing and sending files where kdeconnect-cli is available; GNOME remote input remains in the paired KDE Connect iPhone app. On Fedora, new Terminal shells create a tmux session visible in Ptyxis where available, while older remote-only shells keep their original behavior. The Terminal toolbar can list and attach existing tmux sessions. Closing a shared terminal in the phone UI detaches that client without killing the tmux server, unlike remote-only PTYs. These features are detailed in [Fedora GNOME host support](fedora-gnome.md).
+
 ## Terminal
 
 Terminal opens a real interactive login shell on the host through the Rust backend. Tap its output to open the system keyboard. **Keys** mode sends input immediately, with autocorrect disabled for commands and paths. The shortcut row appears only in Keys mode and provides Esc, Tab, arrows and Ctrl; Ctrl applies to the next letter. On a computer (the desktop app, or a browser that is not on iOS or Android and is used with a mouse or trackpad), and on an iPhone, iPad, or Android device with a keyboard connected, Terminal takes typing itself, as a desktop terminal does: there is no message box or shortcut row, and every key, including Home, End, Delete, function keys, Ctrl and Alt combinations, reaches the shell. The shell survives live reload and reconnection; `exit` closes that shell tab; closing the last tab closes the Terminal window. Closing Terminal from Expo terminates its app-owned shell; reopening starts a new one. Files can open a shell in the current folder after confirming replacement of the app-owned Terminal.

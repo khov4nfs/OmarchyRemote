@@ -1,0 +1,48 @@
+.host-control {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  color: var(--theme-text, #e0def4);
+}
+.host-control-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #676176;
+  color: inherit;
+  background: #252431;
+}
+.host-control-list {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+}
+.host-control-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #504c60;
+  background: #292837;
+  color: inherit;
+  text-align: left;
+}
+.host-control-help,
+.host-control-status {
+  margin: 0;
+  line-height: 1.4;
+}
+.host-control-help {
+  opacity: 0.8;
+}
+.host-control-devices {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.host-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
