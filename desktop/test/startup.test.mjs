@@ -12,8 +12,8 @@ test('launcher requests during startup open once the desktop client is ready', (
   assert.deepEqual(opened, []);
   requests.ready(key => opened.push(key));
   assert.deepEqual(opened, ['settings', 'canvas', 'chat']);
-  requests.request('corral');
-  assert.deepEqual(opened, ['settings', 'canvas', 'chat', 'corral']);
+  requests.request('muster');
+  assert.deepEqual(opened, ['settings', 'canvas', 'chat', 'muster']);
 });
 
 test('the full-shell launch is retained alongside app requests during startup', () => {

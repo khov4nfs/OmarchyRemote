@@ -50,7 +50,6 @@ struct App {
     preferences: preferences::Shared,
     chats: chat::Chats,
     canvas: chat::Chats,
-    corral: corral::Corral,
 }
 type ApiError = (StatusCode, Json<Value>);
 fn error(e: impl std::fmt::Display) -> ApiError {
@@ -60,66 +59,12 @@ fn error(e: impl std::fmt::Display) -> ApiError {
     )
 }
 
-/// Corral in `~/Corral`, with the `corral` command its agents' turns run kept beside the app's data.
-fn start_corral() -> anyhow::Result<corral::Corral> {
-    let bin = apps::data_dir()?.join("corral-bin");
-    std::fs::create_dir_all(&bin)?;
-    let command = bin.join("corral");
-    std::fs::write(&command, corral::CLI_SCRIPT)?;
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&command, std::fs::Permissions::from_mode(0o755))?;
-    }
-    let port = std::env::var("OMARCHY_API_PORT").unwrap_or_else(|_| "4188".into());
-    let name = std::env::var("OMARCHY_HOST_NAME")
-        .ok()
-        .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
-        .map(|n| n.trim().to_owned())
-        .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| "this host".into());
-    // Agents on other hosts reach this one's agent API at its private HTTPS address.
-    let public = std::env::var("OMARCHY_CORRAL_URL")
-        .ok()
-        .or_else(|| {
-            std::env::var("OMARCHY_ORIGINS")
-                .ok()?
-                .split(',')
-                .map(str::trim)
-                .find(|o| o.starts_with("https://"))
-                .map(|o| format!("{}/api/corral/agent", o.trim_end_matches('/')))
-        })
-        .filter(|u| !u.is_empty());
-    corral::start(corral::Setup {
-        root: corral::default_root()?,
-        bin,
-        api: format!("http://127.0.0.1:{port}/api/corral/agent"),
-        name,
-        public,
-    })
-}
-/// Corral's replies read aloud, by the host's speech adapter.
-async fn corral_speech(
-    State(corral): State<corral::Corral>,
-    Path(id): Path<String>,
-    Query(query): Query<corral::VoiceQuery>,
-    Json(request): Json<voice::SpeechRequest>,
-) -> Result<Response, ApiError> {
-    let value = corral
-        .voice_state(&id, &query.thread)
-        .ok_or((StatusCode::NOT_FOUND, Json(json!({"error":"Not found"}))))?;
-    voice::speak(&value, request).await
-}
 async fn authorize(
     State(app): State<App>,
     request: axum::extract::Request,
     next: Next,
 ) -> Response {
     let headers = request.headers();
-    // An agent's `corral` command, on this host, sends its turn's token, which Corral checks.
-    let path = request.uri().path();
-    if path == "/api/corral/agent" || path.starts_with("/api/corral/agent/") {
-        return next.run(request).await;
-    }
     if headers.get("x-omarchy-proxy").and_then(|v| v.to_str().ok()) != Some(app.token.as_str()) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -684,7 +629,6 @@ async fn main() -> anyhow::Result<()> {
         )?)),
         chats: chat::start(chat::Kind::Chat),
         canvas: chat::start(chat::Kind::Canvas),
-        corral: start_corral()?,
     };
     let router = Router::new()
         .route("/api/capabilities", get(capabilities))
@@ -750,14 +694,6 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/terminal/{id}/close", post(terminal_close))
         .nest("/api/chat", chat::router(app.chats.clone()))
         .nest("/api/canvas", chat::router(app.canvas.clone()))
-        .nest(
-            "/api/corral",
-            corral::router(app.corral.clone()).merge(
-                Router::new()
-                    .route("/conversations/{id}/speech", post(corral_speech))
-                    .with_state(app.corral.clone()),
-            ),
-        )
         .route("/api/muster", get(muster::board))
         .route("/api/muster/hidden", post(muster::hide))
         .route("/api/muster/reviewed", post(muster::reviewed))

@@ -62,8 +62,8 @@ native `aarch64.pacman` package. The pacman package adds Omarchy Remote to the a
 launcher. Configure the backend and web services using the host installation steps
 in the root README; packaging the client alone does not start a host.
 
-Canvas, Corral, Muster, Chat, Herdr, CodexBar, and Settings can each have their own
-launcher through **Settings → app windows**. Canvas and Corral are served by the
+Canvas, Muster, Chat, Herdr, CodexBar, and Settings can each have their own
+launcher through **Settings → app windows**. Canvas and Chat are served by the
 shared Rust backend: they need no separate application server or architecture-specific
 frontend build. Keep the backend and web shell at the same source revision. Their
 agent commands must be installed and authenticated on this host; installing a

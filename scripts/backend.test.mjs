@@ -98,7 +98,9 @@ test('host gateway rejects cross-site requests and unknown hosts', async () => {
     ws.on('error', () => {});
   });
   assert.equal(status, 403);
-  assert.equal((await api('capabilities')).apps.length, 14);
+  const capabilities = await api('capabilities');
+  assert.equal(capabilities.apps.length, 13);
+  assert.ok(!capabilities.apps.some(app => app.id === 'corral'));
 });
 
 test('persistent real shell accepts input, resizes, and reconnects', async () => {
@@ -233,44 +235,11 @@ test('a new Herdr tab joins an existing workspace in a chosen home folder', asyn
   }
 });
 
-test('Corral lists its engines, checks agents, and keeps channels and their messages', async () => {
-  const overview = await api('corral');
-  assert.ok(overview.engines.some(e => e.id === 'claude' || e.id === 'codex'));
-  const post = (path, body) =>
-    fetch(`${base}/api/corral/${path}`, {
-      method: 'POST',
-      headers: { 'X-Hyprland-Client': '1', 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  // Names are handles; homes are folders inside home.
-  assert.equal(
-    (await post('agents', { name: 'Bad Name', engine: 'claude', home: '.' })).status,
-    400
-  );
-  assert.equal((await post('agents', { name: 'ok', engine: 'claude', home: '/tmp' })).status, 400);
-  const name = 'test-' + Math.random().toString(36).slice(2, 8);
-  const channel = await api('corral/channels', { name, topic: 'Backend test' });
-  try {
-    // A message that mentions no agent wakes no one.
-    await api(`corral/conversations/${channel.id}/messages`, { text: 'hello, channel' });
-    const read = await api(`corral/conversations/${channel.id}`);
-    assert.deepEqual(
-      read.messages.map(m => [m.author, m.text]),
-      [['you', 'hello, channel']]
-    );
-    assert.deepEqual(read.working, []);
-    assert.equal((await post('channels', { name })).status, 409);
-  } finally {
-    await api(`corral/conversations/${channel.id}/delete`, {});
-  }
-  assert.ok(!(await api('corral')).conversations.some(c => c.id === channel.id));
-  // An agent's `corral` command needs its turn's token; the app's own headers are not enough.
-  const agentApi = await fetch(`${base}/api/corral/agent/agents`, {
-    method: 'POST',
-    headers: { 'X-Hyprland-Client': '1', 'Content-Type': 'application/json' },
-    body: '{}',
+test('removed Corral API is unavailable', async () => {
+  const response = await fetch(base + '/api/corral', {
+    headers: { 'X-Hyprland-Client': '1' },
   });
-  assert.equal(agentApi.status, 401);
+  assert.equal(response.status, 404);
 });
 
 test('a Herdr pane is renamed by its tab and closed with its tab', async () => {
