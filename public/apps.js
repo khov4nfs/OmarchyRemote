@@ -46,6 +46,18 @@
     native: true,
     deskKeys: [{ keys: '↩', code: /^(Enter|NumpadEnter)$/, label: 'Terminal' }],
   });
+  define('host-apps', {
+    name: 'applications',
+    color: 'var(--theme-blue)',
+    glyph: 'ap',
+    description: 'find and launch installed desktop apps',
+  });
+  define('kde-connect', {
+    name: 'KDE Connect',
+    color: 'var(--theme-cyan)',
+    glyph: 'kc',
+    description: 'pair devices · share files · remote input',
+  });
   define('codexbar', {
     name: 'CodexBar',
     color: 'var(--theme-magenta)',
@@ -244,6 +256,8 @@
   const DEFAULT_PINS = [
     'terminal',
     'files',
+    'host-apps',
+    'kde-connect',
     ...(browserEnabled ? ['browser'] : []),
     'herdr',
     'muster',

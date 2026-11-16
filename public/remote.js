@@ -380,6 +380,8 @@
     constructor(root, bridge, app = 'terminal', storageKey = null) {
       this.app = app;
       this.storageKey = storageKey || 'omarchy-' + app + '-id';
+      this.sharedStorageKey = 'omarchy-shared-' + this.storageKey;
+      this.shared = storage.read(this.sharedStorageKey);
       this.bridge = bridge;
       this.root = root;
       this.status = node('span', 'remote-status');
@@ -388,6 +390,10 @@
       this.restart = button(app === 'terminal' ? 'New shell' : `Restart ${app}`, () => {
         if (this.exited) {
           storage.set(this.storageKey, null);
+          if (this.shared) {
+            this.shared = { desktop: true };
+            storage.write(this.sharedStorageKey, this.shared);
+          }
           this.exited = false;
           this.connect();
         }
@@ -482,13 +488,31 @@
       this.connecting = true;
       this.setStatus('connecting…');
       try {
+        // New terminals on Fedora/GNOME are shared with a visible Ptyxis window by default.
+        // Existing legacy PTYs remain untouched.
+        if (this.app === 'terminal' && !this.shared && !storage.get(this.storageKey)) {
+          try {
+            const desktop = await api('host/desktop');
+            if (desktop.fedora && desktop.tmux && desktop.ptyxis) {
+              this.shared = { desktop: true };
+              storage.write(this.sharedStorageKey, this.shared);
+            }
+          } catch {}
+        }
         this.sessionRequest = api('terminal/session', {
           id: storage.get(this.storageKey),
           app: this.app,
           cwd: this.app === 'terminal' ? storage.get('omarchy-terminal-cwd') : null,
+          shared: !!this.shared,
+          shared_name: this.shared?.name || null,
+          desktop: this.shared?.desktop === true,
         });
         const session = await this.sessionRequest;
         storage.set(this.storageKey, session.id);
+        if (this.shared && session.shared_name) {
+          this.shared = { name: session.shared_name };
+          storage.write(this.sharedStorageKey, this.shared);
+        }
         if (this.disposed) return;
         const ws = socket(`terminal/${session.id}/ws`);
         this.ws = ws;
@@ -533,8 +557,15 @@
         };
         ws.onerror = () => ws.close();
       } catch (e) {
-        this.setStatus('unavailable · retrying…');
-        this.retry = setTimeout(() => this.connect(), 2500);
+        if (this.shared) {
+          // An unavailable desktop must not create fresh tmux sessions in a retry loop.
+          this.setStatus(e.message);
+          this.exited = true;
+          this.restart.hidden = false;
+        } else {
+          this.setStatus('unavailable · retrying…');
+          this.retry = setTimeout(() => this.connect(), 2500);
+        }
       } finally {
         this.connecting = false;
       }
@@ -626,6 +657,24 @@
       this.bar = node('div', 'terminal-tabs');
       this.body = node('div', 'terminal-tab-body');
       root.append(this.bar, this.body);
+      this.sharedControls = node('div', 'terminal-shared-controls');
+      this.sharedSelect = node('select', 'terminal-shared-select');
+      this.sharedSelect.setAttribute('aria-label', 'Existing Fedora tmux session');
+      this.sharedControls.append(
+        button('New on Fedora', () => {
+          this.add('omarchy-terminal-tab-' + crypto.randomUUID(), true, { desktop: true });
+        }),
+        button('Find sessions', () => this.refreshShared()),
+        this.sharedSelect,
+        button('Attach', () => {
+          if (!this.sharedSelect.value) return;
+          this.add('omarchy-terminal-tab-' + crypto.randomUUID(), true, {
+            name: this.sharedSelect.value,
+          });
+        })
+      );
+      root.insertBefore(this.sharedControls, this.body);
+      this.refreshShared();
       let saved;
       try {
         saved = JSON.parse(storage.get(this.prefix + '-tabs'));
@@ -652,6 +701,20 @@
       );
       this.stopTouchScroll = { cancel: () => this.active.stopTouchScroll.cancel() };
     }
+    async refreshShared() {
+      try {
+        const result = await api('terminal/shared');
+        if (this.disposed) return;
+        this.sharedSelect.replaceChildren();
+        for (const session of result.sessions || []) {
+          const option = node('option', '', session.name);
+          option.value = session.name;
+          this.sharedSelect.append(option);
+        }
+      } catch {
+        this.sharedSelect.replaceChildren();
+      }
+    }
     get active() {
       return this.tabs[this.index];
     }
@@ -664,8 +727,9 @@
     get exited() {
       return this.active.exited;
     }
-    add(key = 'omarchy-terminal-tab-' + crypto.randomUUID(), activate = true) {
+    add(key = 'omarchy-terminal-tab-' + crypto.randomUUID(), activate = true, shared = null) {
       if (this.tabs.length >= 8) return;
+      if (shared) storage.write('omarchy-shared-' + key, shared);
       const root = node('div', 'terminal-tab');
       this.body.append(root);
       const tab = new TerminalApp(root, this.bridge, 'terminal', key);
@@ -691,6 +755,7 @@
       tab.dispose();
       tab.root.remove();
       storage.set(tab.storageKey, null);
+      storage.set(tab.sharedStorageKey, null);
       this.tabs.splice(index, 1);
       this.save();
       this.activate(
@@ -740,7 +805,13 @@
       row.setAttribute('role', 'group');
       row.setAttribute('aria-label', 'Confirm close shell');
       row.append(
-        node('span', '', 'Close shell and its running process?'),
+        node(
+          'span',
+          '',
+          tab.shared
+            ? 'Detach phone from this tmux session? Fedora terminal keeps running.'
+            : 'Close shell and its running process?'
+        ),
         button('Cancel', () => {
           row.remove();
           this.confirmation = null;
@@ -761,6 +832,7 @@
         tab.dispose();
         tab.root.remove();
         storage.set(tab.storageKey, null);
+        storage.set(tab.sharedStorageKey, null);
         this.tabs.splice(this.tabs.indexOf(tab), 1);
         this.save();
         this.activate(Math.min(this.index, this.tabs.length - 1));
@@ -779,11 +851,13 @@
         const id = session?.id || storage.get(tab.storageKey);
         if (id) await api('terminal/' + encodeURIComponent(id) + '/close', {});
         storage.set(tab.storageKey, null);
+        storage.set(tab.sharedStorageKey, null);
       }
       storage.set(this.prefix + '-tabs', null);
       storage.set(this.prefix + '-active', null);
     }
     connect() {
+      this.refreshShared();
       this.active.connect();
     }
     resize() {

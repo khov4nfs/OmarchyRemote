@@ -1,5 +1,7 @@
 # Omarchy Remote
 
+**Fedora GNOME:** See [Fedora host integration](docs/fedora-gnome.md) for Applications, KDE Connect / GSConnect with an optional embedded Wayland touchpad (`wdotool` via RemoteDesktop portal), shared Ptyxis/tmux terminals, and Lume interoperability boundaries.
+
 A touch shell for an [Omarchy](https://omarchy.org) desktop, used from an iPhone, an iPad, an Android device, a desktop app, or any browser window. It opens a real shell on the host, browses the home directory, mirrors desktop browser tabs, follows Herdr agent panes, and runs host TUIs (btop, systemctl-tui, lazydocker, dua, lnav) inside phone-sized windows with Hyprland-style workspaces, Expo, keyboard shortcuts, and the Omarchy theme catalog. On larger screens the same shell tiles windows like Hyprland's dwindle layout and takes ⌘ shortcuts.
 
 Everything runs on the host you already own. There is no cloud relay: a Rust backend on loopback serves the apps, a small Node server serves the web shell, and a private HTTPS address (Tailscale Serve works well) puts it on your phone.
